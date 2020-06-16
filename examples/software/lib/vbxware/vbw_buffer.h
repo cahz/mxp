@@ -67,6 +67,7 @@ extern "C"{
   		int chunk_size;
 		int chunk_increment;
 		int full/*bool*/;
+		void* first_in;
 		void* current_in;
 		void* last_in;
 	};
@@ -74,7 +75,7 @@ extern "C"{
 
 	static inline rotating_prefetcher_t
 	rotating_prefetcher(int num_buffers, size_t chunk_size,
-	                    void* first_in,void* last_in, ssize_t chunk_increment)
+	                    void* first_in,void* last_in, size_t chunk_increment)
 	{
 		rotating_prefetcher_t self;
 		self.num_buffers=num_buffers+1;
@@ -87,6 +88,7 @@ extern "C"{
 		self.chunk_increment=chunk_increment;
 		self.chunk_size=chunk_size;
 
+		self.first_in=first_in;
 		self.current_in=first_in;
 		self.last_in=last_in;
 		self.full=0;
@@ -104,12 +106,13 @@ extern "C"{
 	static inline void rp_fetch(rotating_prefetcher_t* self)
 	{
 		char* cur_buf=(char*)self->data+self->current_buffer*self->buffer_size;
+		int curr_chunk_size = self->chunk_size;
 		if(self->current_in < self->last_in){
-			if((size_t)self->current_in + self->chunk_size  > (size_t)self->last_in ){
-				self->chunk_size=(size_t)self->last_in - (size_t) self->current_in;
+			if((size_t)self->current_in + curr_chunk_size  > (size_t)self->last_in ){
+				curr_chunk_size=(size_t)self->last_in - (size_t) self->current_in;
 			}
 
-			vbx_dma_to_vector(cur_buf,self->current_in,self->chunk_size);
+			vbx_dma_to_vector(cur_buf,self->current_in,curr_chunk_size);
 		}
 		self->current_in=(char*)self->current_in+self->chunk_increment;
 		rp_rotate(self);
@@ -118,8 +121,9 @@ extern "C"{
 	{
 		int actual_buffer=nth_buf;
 		if( self->full){
-			actual_buffer+= self->current_buffer  ;
+			actual_buffer += self->current_buffer;
 		}
+
 		/*assume this loop is faster than a modulus operation*/
 		while(actual_buffer >= self->num_buffers){
 			actual_buffer -= self->num_buffers;
@@ -136,6 +140,8 @@ extern "C"{
 	 */
 	static inline void rp_reset(rotating_prefetcher_t* self)
 	{
+		// reset to head
+		self->current_in=self->first_in;
 		self->current_buffer=0;
 		self->full=0;
 	}
