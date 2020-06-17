@@ -94,7 +94,7 @@ inline int vbw_mtx_mul( vbx_sp_t *v_out, vbx_sp_t *v_in1, const int rows1, const
 	}
 	vbw_mtx_xp(v_in2_trans, v_in2, rows2, cols2);
 	vbx_set_vl(cols1,cols2,OUTROWS);
-	vbx_set_2D( sizeof(vbx_sp_t), 0, cols2*sizeof(vbx_sp_t));
+	vbx_set_2D( sizeof(vbx_sp_t), 0, rows2*sizeof(vbx_sp_t));
 	vbx_set_3D(OUTCOLS*sizeof(vbx_sp_t), cols1*sizeof(vbx_sp_t), 0);
 	vbxx_acc(VMUL,v_out,v_in1,v_in2_trans);
 	vbx_sp_pop();
@@ -126,10 +126,13 @@ int vbw_mtx_mm_trans_ext( vbx_mm_t *out, vbx_mm_t *in1,  int rows1, int cols1, v
 	//check to see if we can fit everything in scratchpad
 	int sp_free = vbx_sp_getfree();
 	int double_to_to_make_space_for_transpose=2;
-	if(sp_free >(rows1*cols1 +
+	
+	if(sp_free >= sizeof(vbx_sp_t)*(rows1*cols1 +
 	             double_to_to_make_space_for_transpose*rows2*cols2 +
-	             outcols*outrows )){
+	             outcols*outrows)){
 		//do it all in scratchpad
+		printf("Scratchpad in use\n");
+
 		vbx_sp_push();
 		vbx_sp_t* v_in1=(vbx_sp_t*)vbx_sp_malloc(sizeof(vbx_sp_t)*cols1*rows1);
 		vbx_sp_t* v_in2=(vbx_sp_t*)vbx_sp_malloc(sizeof(vbx_sp_t)*cols2*rows2);
@@ -137,7 +140,7 @@ int vbw_mtx_mm_trans_ext( vbx_mm_t *out, vbx_mm_t *in1,  int rows1, int cols1, v
 		assert(v_out!=NULL);
 		vbx_dma_to_vector(v_in1,in1,cols1*rows1*sizeof(vbx_mm_t));
 		vbx_dma_to_vector(v_in2,in2,cols2*rows2*sizeof(vbx_mm_t));
-		vbw_mtx_mul( v_out, v_in1,  rows1, cols1,v_in2, rows2, cols2 );
+		vbw_mtx_mul( v_out, v_in1,  rows1, cols1, v_in2, rows2, cols2 );
 		vbx_dma_to_host(out,v_out,outcols*outrows*sizeof(vbx_mm_t));
 		vbx_sp_pop();
 		vbx_sync();
@@ -152,46 +155,62 @@ int vbw_mtx_mm_trans_ext( vbx_mm_t *out, vbx_mm_t *in1,  int rows1, int cols1, v
 	}
 	vbw_mtx_xp_ext(in2_trans,in2,rows2,cols2);
 	//flip rows and cols
+
 	{
 		int tmp=rows2;
 		rows2=cols2;
 		cols2=tmp;
 	}
+
 	vbx_sp_push();
 	vbx_sp_t* v_row1=(vbx_sp_t*)vbx_sp_malloc(sizeof(vbx_sp_t)*cols1);
-	vbx_sp_t* v_out =(vbx_sp_t*)vbx_sp_malloc(sizeof(vbx_sp_t)*cols1);
+	vbx_sp_t* v_out =(vbx_sp_t*)vbx_sp_malloc(sizeof(vbx_sp_t)*outcols);
 	//how many rows of in2_trans can we fit?
 	sp_free = vbx_sp_getfree();
 	int rows_of_2=sp_free/(sizeof(vbx_sp_t)*cols2*2); //multiply by two is for double buffering
 	rows_of_2=std::min(rows_of_2,rows2);
+	printf("rows_of_2: %d\n", rows_of_2);
 	if(rows_of_2 == 0){//cant fit any rows
 		vbx_sp_pop();
 		return VBW_ERROR_SP_ALLOC_FAILED;
 	}
-	rotating_prefetcher_t rowsb=rotating_prefetcher(1,rows_of_2*rows2*sizeof(vbx_sp_t),
-	                                                in2_trans,in2_trans+cols2*rows2,
-	                                                rows_of_2*rows2*sizeof(vbx_sp_t));
+
+	rotating_prefetcher_t rowsb=rotating_prefetcher(1,rows_of_2*cols2*sizeof(vbx_sp_t),
+	                                        in2_trans,in2_trans+cols2*rows2,
+	                                        rows_of_2*cols2*sizeof(vbx_sp_t));
 
 	vbx_set_vl(cols1,rows_of_2,1);
+
+	// STILL NOT WORKING FOR BUFFERS THAT ARE NOT EXACTLY cols2*rows_of_2
+
 	for(int row=0;row<rows1;row++){
+		// need to fetch buffer 1 first each time
+		rp_reset(&rowsb);
+
 		//read in next row of in1
 		vbx_dma_to_vector(v_row1,in1+cols1*row,sizeof(vbx_sp_t)*cols1);
 
 		//read in first bunch of rows from in2
 		rp_fetch(&rowsb);
+
 		vbx_set_2D(sizeof(vbx_sp_t),0,cols2*sizeof(vbx_sp_t));
 
 		for(int out_index=0;out_index<rows2;out_index+=rows_of_2){
+			// preload next buffer
 			rp_fetch(&rowsb);
-			vbx_sp_t* v_row2=(vbx_sp_t*)rp_get_buffer(&rowsb,0);
+
+			// Need to fetch buffer at offset of 0 from current
+			vbx_sp_t* v_row2=(vbx_sp_t*)rp_get_buffer(&rowsb, 0);
 			vbxx_acc(VMUL,v_out+out_index,v_row1,v_row2);
 		}
+
 		vbx_dma_to_host(out+row*outcols,v_out,outcols*sizeof(vbx_mm_t));
 	}
 
 	vbx_sp_pop();
 	vbx_sync();
 	vbx_shared_free(in2_trans);
+
 	return VBW_SUCCESS;
 }
 

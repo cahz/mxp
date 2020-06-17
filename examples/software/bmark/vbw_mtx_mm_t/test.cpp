@@ -134,12 +134,12 @@ int main(void)
 	vbx_mxp_t *this_mxp = VBX_GET_THIS_MXP();
 	const int VBX_SCRATCHPAD_SIZE = this_mxp->scratchpad_size;
 	int N = VBX_SCRATCHPAD_SIZE / sizeof(vbx_mm_t );
-	N = 20;
-	int M = 20;
+	N = 3000;
+	int M = 1000;
 
 	int PRINT_LENGTH =  N<MAX_PRINT_LENGTH ? N : MAX_PRINT_LENGTH ;
 	//	int PRINT_ROWS = PRINT_LENGTH;
-	int PRINT_ROWS = M<MAX_PRINT_LENGTH ? N : MAX_PRINT_LENGTH;
+	int PRINT_ROWS = M<MAX_PRINT_LENGTH ? M : MAX_PRINT_LENGTH;
 	int PRINT_COLS = PRINT_LENGTH;
 
 	double scalar_time, vector_time,vector2_time;
@@ -175,6 +175,7 @@ int main(void)
 	test_init_array_word( scalar_in1, M*N, 1 );
 	test_copy_array_word( vector_in1, scalar_in1, M*N );
 	test_init_array_word( scalar_in2, M*N, 999 );
+
 	//scalar_mtx_xp_MN_word( vector_in2, scalar_in2, N, N );
 	test_copy_array_word( vector_in2, scalar_in2, M*N );
 
