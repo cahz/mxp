@@ -38,3 +38,5 @@ CXX_SRCS += vbw_vec_div.cpp
 CXX_SRCS += vbw_mtx_xp.cpp
 CXX_SRCS += vbw_vec_add.cpp
 CXX_SRCS += vbw_vec_fir.cpp
+
+CXX_SRCS += vbw_vec_shl.cpp
