@@ -11,7 +11,7 @@ int vbw_vec_shl(vbx_sp_t *v_out, vbx_sp_t *v_in, unsigned int vl)
 	// zero the output and temp
 	vbxx(VMOV, v_out, 0);
 
-	for (int i = 1; i < 8*sizeof(vbx_sp_t); i++){
+	for (int i = 1; i <= 8*sizeof(vbx_sp_t); i++){
 		vbxx(VSHL, v_temp, v_in, i);
 
 		// set v_out to the index at which it overflows
