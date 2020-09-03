@@ -11,3 +11,4 @@ C_SRCS += scalar_vec_rev.c
 C_SRCS += scalar_vec_add.c
 C_SRCS += scalar_vec_divide.c
 C_SRCS += scalar_vec_power.c
+C_SRCS += scalar_vec_shl.c
