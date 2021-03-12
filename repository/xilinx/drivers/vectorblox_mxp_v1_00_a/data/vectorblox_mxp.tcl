@@ -19,7 +19,7 @@ proc generate {drv_handle} {
 		  set vivado_version 0
 	 } else {
 		  set xps false
-		  regexp {SDK/([0-9]*\.[1-4])/} "$tcl_library" matched vivado_version
+		  regexp {[SDK|Vitis]/([0-9]*\.[1-4])/} "$tcl_library" matched vivado_version
 	 }
 	 set drv_name "vectorblox_mxp"
 
